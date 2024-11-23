@@ -5,80 +5,109 @@
 // "http://localhost:8888/comem-archidep-php-todo-exercise/", then BASE_URL
 // should be "/comem-archidep-php-todo-exercise/". If you are accessing the
 // application at "http://localhost:8888", then BASE_URL should be "/".
-define('BASE_URL', '/');
+define('BASE_URL', getenv('TODOLIST_BASE_URL') ?: '/');
 
-// Database connection parameters.
-define('DB_USER', 'todolist');
-define('DB_PASS', 'change-me-now');
-define('DB_NAME', 'todolist');
-define('DB_HOST', '127.0.0.1');
-define('DB_PORT', '3306');
+// Database connection parameters (with the correct password provided here)
+define('DB_USER', 'todolist'); // User to connect to MySQL
+define('DB_PASS', 'G4!tS@r5@2Lw'); // Password for the user 'todolist'
+define('DB_NAME', 'todolist'); // Database name
+define('DB_HOST', '127.0.0.1'); // MySQL host
+define('DB_PORT', '3306'); // MySQL port
 
-$db = new PDO('mysql:host='.DB_HOST.';port='.DB_PORT.';dbname='.DB_NAME, DB_USER, DB_PASS);
+// Attempt to connect to the MySQL database using PDO
+try {
+    $db = new PDO('mysql:host='.DB_HOST.';port='.DB_PORT.';dbname='.DB_NAME, DB_USER, DB_PASS);
+    // Set the PDO error mode to exception to handle errors
+    $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+} catch (PDOException $e) {
+    // If the connection fails, display an error message
+    die("Database connection failed: " . $e->getMessage());
+}
+
 $items = array();
 
 if (isset($_POST['action'])) {
-  switch($_POST['action']) {
+    switch($_POST['action']) {
 
-    /**
-     * Insert a new task into the database, then redirect to the base URL.
-     */
-    case 'new':
+        /**
+         * Insert a new task into the database, then redirect to the base URL.
+         */
+        case 'new':
+            $title = $_POST['title'];
+            if ($title && $title !== '') {
+                // Insert query to add a new task
+                $insertQuery = 'INSERT INTO todo (title, done, created_at) VALUES (:title, 0, CURRENT_TIMESTAMP)';
+                $stmt = $db->prepare($insertQuery); 
+                $stmt->bindParam(':title', $title, PDO::PARAM_STR); 
+                if (!$stmt->execute()) {
+                    die(print_r($stmt->errorInfo(), true)); 
+                } 
+            }
+            header('Location: ' . BASE_URL);
+            die();
 
-      $title = $_POST['title'];
-      if ($title && $title !== '') {
-        $insertQuery = 'INSERT INTO todo VALUES(NULL, \''.$title.'\', FALSE, CURRENT_TIMESTAMP)';
-        if (!$db->query($insertQuery)) {
-          die(print_r($db->errorInfo(), true));
-        }
-      }
+        /**
+         * Toggle a task (i.e. if it is done, undo it; if it is not done, mark it as done),
+         * then redirect to the base URL.
+         */
+        case 'toggle':
+            $id = $_POST['id'];
+            if (is_numeric($id)) {
+                // Query to toggle the task state (done/undone)
+                $updateQuery = 'UPDATE todo SET done = CASE WHEN done = 1 THEN 0 ELSE 1 END WHERE id = :id';
+                
+                // Prepare the query
+                $stmt = $db->prepare($updateQuery);
+                
+                // Bind the :id parameter with the variable $id
+                $stmt->bindParam(':id', $id, PDO::PARAM_INT);
+                
+                // Execute the query and handle errors
+                if (!$stmt->execute()) {
+                    die(print_r($stmt->errorInfo(), true));
+                }
+            }
+        
+            // Redirect to the main page after processing
+            header('Location: ' . BASE_URL);
+            die();
+        
+        /**
+         * Delete a task, then redirect to the base URL.
+         */
+        case 'delete':
+            $id = $_POST['id'];
+            if (is_numeric($id)) {
+                // Query to delete the task corresponding to the given ID
+                $deleteQuery = 'DELETE FROM todo WHERE id = :id';
+                
+                // Prepare the query
+                $stmt = $db->prepare($deleteQuery);
+                
+                // Bind the :id parameter with the variable $id
+                $stmt->bindParam(':id', $id, PDO::PARAM_INT);
+                
+                // Execute the query and handle errors
+                if (!$stmt->execute()) {
+                    die(print_r($stmt->errorInfo(), true));
+                }
+            }
+        
+            // Redirect to the main page after processing
+            header('Location: ' . BASE_URL);
+            die();
 
-      header('Location: '.BASE_URL);
-      die();
-
-    /**
-     * Toggle a task (i.e. if it is done, undo it; if it is not done, mark it as done),
-     * then redirect to the base URL.
-     */
-    case 'toggle':
-
-      $id = $_POST['id'];
-      if(is_numeric($id)) {
-        $updateQuery = ''; // IMPLEMENT ME
-        if(!$db->query($updateQuery)) {
-          die(print_r($db->errorInfo(), true));
-        }
-      }
-
-      header('Location: '.BASE_URL);
-      die();
-
-    /**
-     * Delete a task, then redirect to the base URL.
-     */
-    case 'delete':
-
-      $id = $_POST['id'];
-      if(is_numeric($id)) {
-        $deleteQuery = ''; // IMPLEMENT ME
-        if(!$db->query($deleteQuery)) {
-          die(print_r($db->errorInfo(), true));
-        }
-      }
-
-      header('Location: '.BASE_URL);
-      die();
-
-    default:
-      break;
-  }
+        default:
+            break;
+    }
 }
 
 /**
  * Select all tasks from the database.
  */
-$selectQuery = ''; // IMPLEMENT ME
-$items = $db->query($selectQuery);
+$selectQuery = 'SELECT * FROM todo ORDER BY created_at DESC';
+$items = $db->query($selectQuery)->fetchAll(PDO::FETCH_ASSOC);
+
 ?>
 
 <html>
